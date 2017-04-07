@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
+	"math/big"
 	"os"
 	"os/signal"
 	"strings"
@@ -49,7 +50,11 @@ func sendMetrics() error {
 }
 
 func randomDice() int {
-	return rand.Intn(6) + 1
+	n, err := rand.Int(rand.Reader, big.NewInt(6))
+	if err != nil {
+		log.Printf("error in rand.Int, err=%+v", errors.WithStack(err))
+	}
+	return int(n.Int64())
 }
 
 func run(ctx context.Context) error {
@@ -78,8 +83,6 @@ func main() {
 	flag.StringVar(&serverID, "server-id", "sv01", "server ID")
 	flag.IntVar(&siteCount, "site-count", 50, "site count")
 	flag.Parse()
-
-	rand.Seed(time.Now().Unix())
 
 	ctx, cancel := context.WithCancel(context.Background())
 
