@@ -54,7 +54,7 @@ func randomDice() int {
 	if err != nil {
 		log.Printf("error in rand.Int, err=%+v", errors.WithStack(err))
 	}
-	return int(n.Int64())
+	return int(n.Int64()) + 1
 }
 
 func run(ctx context.Context) error {
