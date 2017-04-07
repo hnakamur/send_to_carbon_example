@@ -36,14 +36,14 @@ func buildMetrics(t time.Time) []graphite.Metric {
 	return metrics
 }
 
-func sendMetrics() error {
+func sendMetrics(t time.Time) error {
 	g, err := graphite.NewGraphite(graphiteAddr, graphitePort)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	defer g.Disconnect()
 
-	t := time.Now()
+	log.Printf("t=%s", t)
 	metrics := buildMetrics(t)
 
 	return g.SendMetrics(metrics)
@@ -58,13 +58,15 @@ func randomDice() int {
 }
 
 func run(ctx context.Context) error {
+	now := time.Now()
+	time.Sleep(now.Round(5 * time.Second).Sub(now))
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("canceled, exiting")
 			return nil
-		case <-time.Tick(5 * time.Second):
-			err := sendMetrics()
+		case t := <-time.Tick(5 * time.Second):
+			err := sendMetrics(t)
 			if err != nil {
 				log.Printf("error in sendMetrics, err=%+v", errors.WithStack(err))
 			}
@@ -84,6 +86,7 @@ func main() {
 	flag.IntVar(&siteCount, "site-count", 50, "site count")
 	flag.Parse()
 
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := make(chan os.Signal, 1)
