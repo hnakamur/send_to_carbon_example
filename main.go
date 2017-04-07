@@ -43,7 +43,7 @@ func sendMetrics(t time.Time) error {
 	}
 	defer g.Disconnect()
 
-	log.Printf("t=%s", t)
+	// log.Printf("t=%s", t)
 	metrics := buildMetrics(t)
 
 	return g.SendMetrics(metrics)
@@ -59,13 +59,13 @@ func randomDice() int {
 
 func run(ctx context.Context) error {
 	now := time.Now()
-	time.Sleep(now.Round(5 * time.Second).Sub(now))
+	time.Sleep(now.Round(interval).Sub(now))
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("canceled, exiting")
 			return nil
-		case t := <-time.Tick(5 * time.Second):
+		case t := <-time.Tick(interval):
 			err := sendMetrics(t)
 			if err != nil {
 				log.Printf("error in sendMetrics, err=%+v", errors.WithStack(err))
@@ -74,12 +74,14 @@ func run(ctx context.Context) error {
 	}
 }
 
+var interval time.Duration
 var serverID string
 var graphiteAddr string
 var graphitePort int
 var siteCount int
 
 func main() {
+	flag.DurationVar(&interval, "interval", time.Minute, "metrics interval")
 	flag.StringVar(&graphiteAddr, "graphite-addr", "localhost", "graphite TCP address")
 	flag.IntVar(&graphitePort, "graphite-port", 2003, "graphite TCP port")
 	flag.StringVar(&serverID, "server-id", "sv01", "server ID")
