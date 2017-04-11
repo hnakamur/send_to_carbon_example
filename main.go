@@ -46,7 +46,13 @@ func sendMetrics(t time.Time) error {
 	// log.Printf("t=%s", t)
 	metrics := buildMetrics(t)
 
-	return g.SendMetrics(metrics)
+	if len(metrics) > 0 {
+		err := g.SendMetrics(metrics)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	}
+	return nil
 }
 
 func randomDice() int {
@@ -57,18 +63,42 @@ func randomDice() int {
 	return int(n.Int64()) + 1
 }
 
+func nextRoundTime(t time.Time, d time.Duration) time.Time {
+	next := t.Round(d)
+	if next.Before(t) {
+		next = next.Add(d)
+	}
+	return next
+}
+
 func run(ctx context.Context) error {
 	now := time.Now()
-	time.Sleep(now.Round(interval).Sub(now))
+	until := nextRoundTime(now, interval)
+	d := until.Sub(now)
+	log.Printf("%s: sleep %s until %s", serverID, d, until)
+	select {
+	case <-ctx.Done():
+		log.Printf("%s: canceled, exiting", serverID)
+		return nil
+	case t := <-time.After(d):
+		err := sendMetrics(t)
+		if err != nil {
+			log.Printf("%s: error in sendMetrics, err=%+v", serverID, err)
+		} else {
+			log.Printf("%s: elapsed for sendMetrics: %s", serverID, time.Since(t))
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("canceled, exiting")
+			log.Printf("%s: canceled, exiting", serverID)
 			return nil
 		case t := <-time.Tick(interval):
 			err := sendMetrics(t)
 			if err != nil {
-				log.Printf("error in sendMetrics, err=%+v", errors.WithStack(err))
+				log.Printf("%s: error in sendMetrics, err=%+v", serverID, err)
+			} else {
+				log.Printf("%s: elapsed for sendMetrics: %s", serverID, time.Since(t))
 			}
 		}
 	}
@@ -95,9 +125,9 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		log.Printf("Got signal")
+		log.Printf("%s: Got signal", serverID)
 		cancel()
-		log.Printf("called cancel")
+		log.Printf("%s: called cancel", serverID)
 	}()
 
 	err := run(ctx)
